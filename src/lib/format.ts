@@ -55,9 +55,13 @@ const trim = (n: number) => {
 
 const sign = (v: number) => (v < 0 ? '-' : '');
 
+/** ROI percentages routinely reach five figures, so they are grouped too. */
 export function pct(n: number | null | undefined, digits = 1): string {
   if (n == null || !Number.isFinite(n)) return '—';
-  return `${n >= 0 ? '' : ''}${n.toFixed(digits)}%`;
+  return `${n.toLocaleString('en-US', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  })}%`;
 }
 
 export function multiple(n: number | null | undefined): string {

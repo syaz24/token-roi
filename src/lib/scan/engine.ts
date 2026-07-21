@@ -147,16 +147,16 @@ export async function runScan(sourceId: string, opts: { runId?: string } = {}): 
        provider, model, model_alias, input_tokens, output_tokens,
        cache_read_tokens, cache_write_tokens, reasoning_tokens, total_tokens,
        reported_cost_usd, calculated_cost_usd, priced, pricing_id, request_type,
-       status, duration_ms, prompt_preview, metadata, source_file, source_line,
-       dataset, imported_at
+       status, duration_ms, prompt_preview, turn_index, tool_uses, is_turn_start,
+       metadata, source_file, source_line, dataset, imported_at
      ) VALUES (
        @eventId, @source, @sourceVersion, @sessionId, @turnId, @timestamp,
        @workingDirectory, @detectedProjectRoot, @projectId, @mappingMethod,
        @provider, @model, @modelAlias, @inputTokens, @outputTokens,
        @cacheReadTokens, @cacheWriteTokens, @reasoningTokens, @totalTokens,
        @reportedCostUsd, @calculatedCostUsd, @priced, @pricingId, @requestType,
-       @status, @durationMs, @promptPreview, @metadata, @sourceFile, @sourceLine,
-       'real', @importedAt
+       @status, @durationMs, @promptPreview, @turnIndex, @toolUses, @isTurnStart,
+       @metadata, @sourceFile, @sourceLine, 'real', @importedAt
      )`,
   );
 
@@ -193,6 +193,9 @@ export async function runScan(sourceId: string, opts: { runId?: string } = {}): 
         status: e.status,
         durationMs: e.durationMs,
         promptPreview: e.promptPreview,
+        turnIndex: e.turnIndex ?? null,
+        toolUses: e.toolUses ?? null,
+        isTurnStart: e.isTurnStart ? 1 : 0,
         metadata: e.metadata ? JSON.stringify(e.metadata) : null,
         sourceFile: e.sourceFile,
         sourceLine: e.sourceLine,

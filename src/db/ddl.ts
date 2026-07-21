@@ -197,4 +197,21 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 `,
   },
+  {
+    // Conversation-shape columns, for session breakdowns, per-turn cost curves
+    // and prompt rankings.
+    //
+    // `prompt_preview` previously held the ASSISTANT's reply text, despite its
+    // name. From this migration on it holds the USER prompt that began the turn,
+    // which is what every prompt-level feature actually needs. Existing rows keep
+    // their old value until the source is re-indexed.
+    id: '0002_conversation_shape',
+    sql: `
+ALTER TABLE events ADD COLUMN turn_index INTEGER;
+ALTER TABLE events ADD COLUMN tool_uses INTEGER;
+ALTER TABLE events ADD COLUMN is_turn_start INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS events_turn_idx ON events(dataset, session_id, turn_index);
+CREATE INDEX IF NOT EXISTS events_turnstart_idx ON events(dataset, is_turn_start);
+`,
+  },
 ];

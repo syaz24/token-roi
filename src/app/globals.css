@@ -219,6 +219,58 @@ body {
   }
 }
 
+/* ---------- Page transitions ---------- */
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.page-enter {
+  animation: page-enter 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Panels settle in just behind the page, which reads as depth rather than as a
+   queue of separate animations. Capped so a dense dashboard never feels slow. */
+@keyframes panel-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.page-enter .panel {
+  animation: panel-rise 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.page-enter .panel:nth-of-type(1) { animation-delay: 20ms; }
+.page-enter .panel:nth-of-type(2) { animation-delay: 40ms; }
+.page-enter .panel:nth-of-type(3) { animation-delay: 60ms; }
+.page-enter .panel:nth-of-type(4) { animation-delay: 80ms; }
+.page-enter .panel:nth-of-type(n + 5) { animation-delay: 100ms; }
+
+/* The top bar is outside the template, so it never re-animates on navigation. */
+.reduce-motion .page-enter,
+.reduce-motion .page-enter .panel {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter,
+  .page-enter .panel {
+    animation: none !important;
+  }
+}
+
 /* ---------- Chart tooltip ---------- */
 
 .chart-tip {

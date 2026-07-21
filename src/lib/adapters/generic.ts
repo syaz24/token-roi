@@ -105,6 +105,10 @@ export function normaliseGenericRow(
     status: String(pick(row, ['status']) ?? 'ok'),
     durationMs: toNum(pick(row, ['durationMs', 'duration', 'latencyMs'])),
     promptPreview: preview,
+    // Conversation shape is not part of the generic import contract.
+    turnIndex: null,
+    toolUses: null,
+    isTurnStart: false,
     metadata: null,
     sourceFile: file,
     sourceLine: line,

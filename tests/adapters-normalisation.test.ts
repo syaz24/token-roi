@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { normaliseClaudeLine } from '@/lib/adapters/claude-code';
+import { newClaudeState, normaliseClaudeLine } from '@/lib/adapters/claude-code';
 import { newCodexState, normaliseCodexLine } from '@/lib/adapters/codex';
 import { normaliseGeminiLine, type GeminiFileState } from '@/lib/adapters/gemini';
 import { normaliseGenericRow, parseCsv } from '@/lib/adapters/generic';
@@ -10,8 +10,10 @@ import { fixturePath, readFixtureJsonl } from './helpers';
 describe('claude-code adapter token normalisation', () => {
   const file = fixturePath('claude-code', 'sample.jsonl');
   const { records } = readFixtureJsonl(file);
+  // Conversation state is carried across the file, exactly as the scanner does.
+  const st = newClaudeState();
   const events = records
-    .map((r) => normaliseClaudeLine(r.json, file, r.line, 'preview'))
+    .map((r) => normaliseClaudeLine(r.json, file, r.line, 'preview', st))
     .filter((e): e is NormalisedEvent => e !== null);
 
   it('emits only billable assistant records', () => {
@@ -59,11 +61,31 @@ describe('claude-code adapter token normalisation', () => {
     }
   });
 
-  it('redacts secrets in the prompt preview and honours policy "none"', () => {
+  it('stores the USER prompt as the preview, redacted, and honours policy "none"', () => {
+    // The preview is the prompt that CAUSED the turn, not the model's reply —
+    // that is what prompt rankings and per-turn cost need.
+    expect(events[0].promptPreview).toContain('Wire up the exporter');
     expect(events[0].promptPreview).toContain('[REDACTED:email]');
     expect(events[0].promptPreview).toContain('[REDACTED:anthropic-key]');
-    const noPreview = normaliseClaudeLine(records[0].json, file, 1, 'none');
-    expect(noPreview!.promptPreview).toBeNull();
+    expect(events[1].promptPreview).toContain('and now the tests please');
+
+    const noneState = newClaudeState();
+    const none = records
+      .map((r) => normaliseClaudeLine(r.json, file, r.line, 'none', noneState))
+      .filter((e): e is NormalisedEvent => e !== null);
+    expect(none.every((e) => e.promptPreview === null)).toBe(true);
+  });
+
+  it('ignores tool_result blocks, which are harness output rather than prompts', () => {
+    // The fixture feeds a tool_result back between the two real prompts. If it
+    // were mistaken for a prompt it would start a spurious third turn.
+    expect(events.map((e) => e.turnIndex)).toEqual([1, 2]);
+  });
+
+  it('counts tool calls and marks only the first event of a turn', () => {
+    expect(events[0].toolUses).toBe(2);
+    expect(events[1].toolUses).toBe(0);
+    expect(events.every((e) => e.isTurnStart)).toBe(true);
   });
 });
 

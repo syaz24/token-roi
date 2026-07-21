@@ -143,6 +143,10 @@ export function normaliseCodexLine(
     status: 'ok',
     durationMs: null,
     promptPreview: null, // this format has no reliable per-request prompt text
+    // This format exposes no turn numbering or tool-call counts.
+    turnIndex: null,
+    toolUses: null,
+    isTurnStart: false,
     metadata: {
       contextWindow: p.info?.model_context_window ?? null,
       planType: p.rate_limits?.plan_type ?? null,

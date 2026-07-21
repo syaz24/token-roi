@@ -160,6 +160,10 @@ function normaliseGeminiMessage(
     status: 'ok',
     durationMs: null,
     promptPreview: preview,
+    // This format exposes no turn numbering or tool-call counts.
+    turnIndex: null,
+    toolUses: null,
+    isTurnStart: false,
     metadata: { toolTokens: num(t.tool) },
     sourceFile: file,
     sourceLine: line,

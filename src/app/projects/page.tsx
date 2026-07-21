@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { PageHeader } from '@/components/shell';
 import { Badge, Empty, Panel } from '@/components/ui';
 import { AddProjectForm } from '@/components/project-forms';
+import { ProjectWizard } from '@/components/project-wizard';
 import { UnassignedList } from '@/components/unassigned-list';
 import { resolveFilters, type SearchParams } from '@/lib/params';
 import { projectRoiTable, unassignedSessions, unassignedUsage } from '@/lib/queries';
@@ -22,6 +23,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
       <PageHeader
         title="Projects"
         description="Register a development folder so token events can be attributed to it. Nothing outside the folders you register is ever scanned."
+        right={<ProjectWizard />}
       />
 
       <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-3">

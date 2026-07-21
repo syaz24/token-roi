@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { Check, ChevronDown, Info } from 'lucide-react';
 
 export function cn(...parts: Array<string | false | null | undefined>): string {
@@ -149,6 +150,7 @@ export function MetricCard({
   footnote,
   warning,
   exact,
+  href,
 }: {
   label: string;
   value: string;
@@ -162,11 +164,19 @@ export function MetricCard({
   /** Full precision, thousand-separated. Shown on hover when the headline is
    *  abbreviated (e.g. "5.7B"), so the exact figure is always reachable. */
   exact?: string;
+  /** Makes the whole card a link to the page that explains this number. */
+  href?: string;
 }) {
   const toneClass =
     tone === 'pos' ? 'text-pos' : tone === 'neg' ? 'text-neg' : tone === 'roi' ? 'text-roi' : 'text-ink';
-  return (
-    <div className="panel panel-dotted panel-hover flex min-w-0 flex-col justify-between gap-2 p-3">
+
+  const card = (
+    <div
+      className={cn(
+        'panel panel-dotted panel-hover flex min-w-0 flex-col justify-between gap-2 p-3',
+        href && 'cursor-pointer transition-transform duration-150 hover:-translate-y-px',
+      )}
+    >
       <div className="flex items-start justify-between gap-2">
         <span className="label-xs flex items-center gap-1 truncate">
           {label}
@@ -204,6 +214,13 @@ export function MetricCard({
         <div className="h-3.5" />
       )}
     </div>
+  );
+
+  if (!href) return card;
+  return (
+    <Link href={href} className="block min-w-0 focus-visible:rounded-[10px]" aria-label={`${label} — open details`}>
+      {card}
+    </Link>
   );
 }
 

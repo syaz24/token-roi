@@ -1,15 +1,24 @@
 import { PageHeader } from '@/components/shell';
 import { Panel } from '@/components/ui';
 import { TraceExplorer } from '@/components/trace-explorer';
+import { SessionList } from '@/components/session-list';
+import { ViewTabs } from '@/components/view-tabs';
 import { ExportButton } from '@/components/export-button';
 import { resolveFilters, str, type SearchParams } from '@/lib/params';
-import { distinctValues, listEvents, projectUsage, type SessionFilters } from '@/lib/queries';
+import {
+  distinctValues,
+  listEvents,
+  listSessions,
+  projectUsage,
+  type SessionFilters,
+} from '@/lib/queries';
 
 export const dynamic = 'force-dynamic';
 
 export default async function SessionsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const sp = await searchParams;
   const base = resolveFilters(sp);
+  const view = str(sp.view) === 'traces' ? 'traces' : 'conversations';
 
   const f: SessionFilters = {
     ...base,
@@ -22,30 +31,59 @@ export default async function SessionsPage({ searchParams }: { searchParams: Pro
     assigned: (str(sp.assigned) as any) ?? 'all',
     pricedOnly: (str(sp.priced) as any) ?? 'all',
     search: str(sp.q),
-    limit: 100,
+    limit: view === 'traces' ? 100 : 60,
     cursor: str(sp.cursor),
   };
 
-  const page = listEvents(f);
   const options = distinctValues(base.dataset);
   const projects = projectUsage(base).map((p) => ({ id: p.id, name: p.name }));
 
   return (
     <>
       <PageHeader
-        title="Session & Trace Explorer"
-        description="Every indexed request. Click a row for the full token breakdown, cost calculation and source reference. Prompt text is hidden by default."
-        right={<ExportButton type="sessions" label="Export filtered CSV" />}
+        title="Sessions"
+        description={
+          view === 'conversations'
+            ? 'Your conversations, ranked by token volume. Open one to see cost turn by turn and where context growth made it expensive.'
+            : 'Every individual request. Click a row for the full token breakdown, cost calculation and source reference.'
+        }
+        right={
+          <>
+            <ViewTabs
+              param="view"
+              current={view}
+              options={[
+                { value: 'conversations', label: 'Conversations' },
+                { value: 'traces', label: 'Traces' },
+              ]}
+            />
+            <ExportButton type="sessions" label="Export CSV" />
+          </>
+        }
       />
 
-      <Panel bodyClassName="p-0" title={`Traces`} subtitle={`${page.rows.length} rows on this page`}>
-        <TraceExplorer
-          rows={page.rows}
-          nextCursor={page.nextCursor}
-          options={options}
-          projects={projects}
-        />
-      </Panel>
+      {view === 'conversations' ? (
+        <Panel title="Conversations" bodyClassName="p-0">
+          {(() => {
+            const page = listSessions(f);
+            return <SessionList rows={page.rows} nextCursor={page.nextCursor} />;
+          })()}
+        </Panel>
+      ) : (
+        <Panel title="Traces" subtitle="One row per request" bodyClassName="p-0">
+          {(() => {
+            const page = listEvents(f);
+            return (
+              <TraceExplorer
+                rows={page.rows}
+                nextCursor={page.nextCursor}
+                options={options}
+                projects={projects}
+              />
+            );
+          })()}
+        </Panel>
+      )}
     </>
   );
 }

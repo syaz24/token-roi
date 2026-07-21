@@ -7,6 +7,19 @@ import { fixturePath, tmpDir } from './helpers';
 
 const CLAUDE = fixturePath('claude-code', 'sample.jsonl');
 
+// The fixture's one deliberately malformed line, located rather than assumed.
+const CORRUPT_LINE =
+  fs
+    .readFileSync(CLAUDE, 'utf8')
+    .split(/\r?\n/)
+    .findIndex((l) => l.includes('CORRUPT LINE NOT JSON')) + 1;
+
+const VALID_LINES =
+  fs
+    .readFileSync(CLAUDE, 'utf8')
+    .split(/\r?\n/)
+    .filter((l) => l.trim() !== '').length - 1;
+
 describe('corrupt JSONL handling', () => {
   it('skips a corrupt line without throwing and keeps parsing the rest', () => {
     const good: number[] = [];
@@ -22,13 +35,15 @@ describe('corrupt JSONL handling', () => {
     ).not.toThrow();
 
     expect(bad).toHaveLength(1);
-    expect(bad[0].line).toBe(3);
+    expect(bad[0].line).toBe(CORRUPT_LINE);
     expect(bad[0].err).toBeTruthy();
-    // Records before AND after the corrupt line still parse.
-    expect(good).toContain(1);
-    expect(good).toContain(2);
-    expect(good).toContain(6);
-    expect(good).toHaveLength(5);
+    // Records before AND after the corrupt line still parse. Counts are derived
+    // from the fixture so it can grow without invalidating the contract: every
+    // non-empty line except the corrupt one must be handed to the caller.
+    expect(good).toContain(CORRUPT_LINE - 1);
+    expect(good).toContain(CORRUPT_LINE + 1);
+    expect(good).toHaveLength(VALID_LINES);
+    expect(good).not.toContain(CORRUPT_LINE);
   });
 
   it('still produces the surrounding good events end-to-end', () => {

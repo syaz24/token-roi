@@ -62,15 +62,69 @@ interface ClaudeUsage {
   cache_read_input_tokens?: number;
 }
 
+/**
+ * Conversation state carried across a single file.
+ *
+ * Assistant records do not contain the prompt that caused them, so the most
+ * recent real user message is tracked and attached to the events it produced.
+ * That is what makes per-turn cost and prompt rankings possible.
+ */
+export interface ClaudeFileState {
+  lastUserPrompt: string | null;
+  turnIndex: number;
+  /** True until the first assistant event of the current turn is emitted. */
+  turnPending: boolean;
+}
+
+export function newClaudeState(): ClaudeFileState {
+  return { lastUserPrompt: null, turnIndex: 0, turnPending: false };
+}
+
+/**
+ * A `type:"user"` record is only a real prompt when its content is a string, or
+ * a block list containing text. A list of `tool_result` blocks is the harness
+ * feeding output back to the model, not something a human typed.
+ */
+export function extractUserPrompt(content: unknown): string | null {
+  if (typeof content === 'string') return content.trim() || null;
+  if (Array.isArray(content)) {
+    const text = content
+      .filter((c) => c && typeof c === 'object' && (c as any).type === 'text')
+      .map((c) => String((c as any).text ?? ''))
+      .join('\n')
+      .trim();
+    return text || null;
+  }
+  return null;
+}
+
+function countToolUses(content: unknown): number {
+  if (!Array.isArray(content)) return 0;
+  return content.filter((c) => c && typeof c === 'object' && (c as any).type === 'tool_use').length;
+}
+
 /** Pure transform: one raw JSONL object -> NormalisedEvent | null. Unit tested. */
 export function normaliseClaudeLine(
   obj: unknown,
   file: string,
   line: number,
   promptPolicy: PromptPolicy,
+  st: ClaudeFileState = newClaudeState(),
 ): NormalisedEvent | null {
   if (!obj || typeof obj !== 'object') return null;
   const r = obj as Record<string, any>;
+
+  // Track the prompt that opens each turn.
+  if (r.type === 'user') {
+    const prompt = extractUserPrompt(r.message?.content);
+    if (prompt) {
+      st.lastUserPrompt = prompt;
+      st.turnIndex += 1;
+      st.turnPending = true;
+    }
+    return null;
+  }
+
   if (r.type !== 'assistant') return null;
   const msg = r.message;
   if (!msg || typeof msg !== 'object') return null;
@@ -90,11 +144,16 @@ export function normaliseClaudeLine(
   // requestId is the most stable natural key; uuid is the fallback.
   const natural = r.requestId ?? r.uuid ?? `${file}:${line}`;
 
+  // The stored preview is the USER's prompt for this turn, not the reply.
   let preview: string | null = null;
-  if (promptPolicy !== 'none') {
-    const text = extractText(msg.content);
-    if (text) preview = truncatePreview(redact(text), promptPolicy === 'full' ? 4000 : 160);
+  if (promptPolicy !== 'none' && st.lastUserPrompt) {
+    preview = truncatePreview(redact(st.lastUserPrompt), promptPolicy === 'full' ? 4000 : 300);
   }
+
+  // Only the first assistant event of a turn is the turn's start, so per-turn
+  // aggregates do not count a multi-step tool loop as many turns.
+  const isTurnStart = st.turnPending;
+  st.turnPending = false;
 
   return {
     eventId: sha1(`claude-code|${sessionId}|${natural}`),
@@ -119,6 +178,9 @@ export function normaliseClaudeLine(
     status: r.isApiErrorMessage ? String(r.error ?? 'error') : 'ok',
     durationMs: null,
     promptPreview: preview,
+    turnIndex: st.turnIndex || null,
+    toolUses: countToolUses(msg.content),
+    isTurnStart,
     metadata: {
       gitBranch: r.gitBranch ?? null,
       entrypoint: r.entrypoint ?? null,
@@ -186,13 +248,14 @@ export const claudeCodeAdapter: SourceAdapter = {
     for (const f of files) {
       if (out.length >= limit) break;
       filesSeen++;
+      const pst = newClaudeState();
       readJsonlFrom(
         f,
         0,
         0,
         (rec) => {
           if (out.length >= limit) return;
-          const e = normaliseClaudeLine(rec.json, f, rec.line, 'preview');
+          const e = normaliseClaudeLine(rec.json, f, rec.line, 'preview', pst);
           if (e) out.push(e);
         },
         () => {},
@@ -226,10 +289,14 @@ export const claudeCodeAdapter: SourceAdapter = {
       const hh = headHash(file);
       let startOffset = cp?.byteOffset ?? 0;
       let startLine = cp?.lastLine ?? 0;
-      if (cp && cp.contentHash && hh && cp.contentHash !== hh) {
+      // Conversation state is packed into the checkpoint: resuming mid-file must
+      // not lose the prompt or turn number established by earlier lines.
+      let st = decodeState(cp?.contentHash ?? null);
+      if (cp && cp.contentHash && hh && headOf(cp.contentHash) !== hh) {
         ctx.onWarning(`${path.basename(file)} was rewritten; re-reading from start.`);
         startOffset = 0;
         startLine = 0;
+        st = newClaudeState();
       }
       // Unchanged since last scan: skip without opening.
       if (cp && startOffset === stat.size && cp.mtimeMs === stat.mtimeMs) continue;
@@ -244,7 +311,7 @@ export const claudeCodeAdapter: SourceAdapter = {
           startOffset,
           startLine,
           (rec) => {
-            const e = normaliseClaudeLine(rec.json, file, rec.line, ctx.promptPolicy);
+            const e = normaliseClaudeLine(rec.json, file, rec.line, ctx.promptPolicy, st);
             if (e) batch.push(e);
             else res.recordsSkipped++;
             if (batch.length >= 500) {
@@ -275,7 +342,7 @@ export const claudeCodeAdapter: SourceAdapter = {
         byteOffset: endOffset,
         mtimeMs: stat.mtimeMs,
         sizeBytes: stat.size,
-        contentHash: hh,
+        contentHash: `${hh ?? ''}::${JSON.stringify(st)}`,
         lastLine: endLine,
       });
       if (res.cancelled) break;
@@ -291,3 +358,20 @@ export const claudeCodeAdapter: SourceAdapter = {
     ]);
   },
 };
+
+// Checkpoints pack "<headHash>::<state json>" so a resumed scan keeps the
+// conversation context established by earlier lines in the same file.
+function headOf(s: string): string {
+  return s.split('::')[0] ?? '';
+}
+
+function decodeState(packed: string | null): ClaudeFileState {
+  if (!packed) return newClaudeState();
+  const i = packed.indexOf('::');
+  if (i === -1) return newClaudeState();
+  try {
+    return { ...newClaudeState(), ...(JSON.parse(packed.slice(i + 2)) as ClaudeFileState) };
+  } catch {
+    return newClaudeState();
+  }
+}

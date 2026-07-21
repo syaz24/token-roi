@@ -14,7 +14,7 @@ describe('stable event ids (deduplication)', () => {
   it('claude: the same record always yields the same id', () => {
     const file = fixturePath('claude-code', 'sample.jsonl');
     const { records } = readFixtureJsonl(file);
-    const rec = records[0];
+    const rec = records.find((r) => (r.json as any)?.requestId === 'req_a')!;
     const a = normaliseClaudeLine(rec.json, file, rec.line, 'preview')!;
     const b = normaliseClaudeLine(structuredClone(rec.json), file, rec.line, 'preview')!;
     expect(a.eventId).toBe(b.eventId);
@@ -26,7 +26,7 @@ describe('stable event ids (deduplication)', () => {
   it('claude: a different requestId yields a different id', () => {
     const file = fixturePath('claude-code', 'sample.jsonl');
     const { records } = readFixtureJsonl(file);
-    const base = records[0].json as Record<string, any>;
+    const base = records.find((r) => (r.json as any)?.requestId === 'req_a')!.json as Record<string, any>;
     const a = normaliseClaudeLine(base, file, 1, 'none')!;
     const b = normaliseClaudeLine({ ...base, requestId: 'req_other' }, file, 1, 'none')!;
     expect(b.eventId).not.toBe(a.eventId);

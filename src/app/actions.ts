@@ -9,8 +9,13 @@ import { z } from 'zod';
 import { raw } from '@/db/client';
 import { normPath } from '@/lib/projects/match';
 import { remapProjects, repriceAll, runScan } from '@/lib/scan/engine';
-import { setSetting } from '@/lib/settings';
+import { getSetting, setSetting } from '@/lib/settings';
 import { autoScan, markFirstRunNoticeSeen } from '@/lib/scan/auto';
+import {
+  createProposedProjects,
+  proposeProjects,
+  type ProjectProposal,
+} from '@/lib/projects/wizard';
 import { findGitRoot, scanGitMetrics } from '@/lib/projects/git';
 import { installSampleData, removeSampleData } from '@/lib/sample';
 
@@ -236,6 +241,47 @@ export async function assignSessionToProject(sessionId: string, projectId: strin
   }
   revalidatePath('/', 'layout');
   return { ok: true, message: remember ? 'Assigned and remembered this folder mapping.' : 'Session assigned.' };
+}
+
+/* ------------------------ setup wizard ------------------------ */
+
+export async function getProjectProposals(): Promise<ProjectProposal[]> {
+  const dataset = (getSetting('dataset') ?? 'real') as 'real' | 'sample';
+  return proposeProjects(dataset);
+}
+
+/**
+ * Create the proposals the user kept, then re-map every event so the new
+ * projects immediately own their history.
+ */
+export async function applyProjectProposals(proposals: ProjectProposal[]): Promise<ActionResult> {
+  const dataset = (getSetting('dataset') ?? 'real') as 'real' | 'sample';
+  const r = createProposedProjects(dataset, proposals);
+  if (!r.created) {
+    return { ok: false, message: r.skipped ? 'Nothing selected to create.' : 'No new projects to create.' };
+  }
+
+  const mapped = remapProjects();
+
+  // Git metadata is best-effort: a proposal may point at a plain folder.
+  for (const name of r.names) {
+    try {
+      const row = raw()
+        .prepare(`SELECT id, path FROM projects WHERE name = ? AND dataset = ? LIMIT 1`)
+        .get(name, dataset) as { id: string; path: string } | undefined;
+      if (!row) continue;
+      const root = findGitRoot(row.path).root;
+      if (root) scanGitMetrics(row.id, root);
+    } catch {
+      /* a project without git metrics is still perfectly usable */
+    }
+  }
+
+  revalidatePath('/', 'layout');
+  return {
+    ok: true,
+    message: `Created ${r.created} project${r.created === 1 ? '' : 's'}. ${mapped.toLocaleString()} events are now attributed.`,
+  };
 }
 
 export async function rescanGit(projectId: string): Promise<ActionResult> {

@@ -694,6 +694,161 @@ export function unassignedSessions(dataset: Dataset, limit = 200) {
   }>;
 }
 
+/* ------------------ conversation-level views ------------------ */
+
+export interface SessionRow {
+  sessionId: string;
+  projectId: string | null;
+  projectName: string | null;
+  source: string;
+  model: string | null;
+  /** The prompt that opened the conversation, when the source exposes one. */
+  firstPrompt: string | null;
+  requests: number;
+  turns: number;
+  toolUses: number;
+  tokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  cost: number | null;
+  startedAt: string;
+  endedAt: string;
+}
+
+/**
+ * One row per conversation rather than per request.
+ *
+ * `turns` counts is_turn_start rather than rows, so a long tool loop inside a
+ * single turn is not mistaken for many turns. Sources that do not expose turns
+ * report 0, which the UI renders as "—" instead of implying zero activity.
+ */
+export function listSessions(f: SessionFilters): { rows: SessionRow[]; nextCursor: string | null } {
+  const limit = Math.min(500, f.limit ?? 60);
+  const clauses = [`e.dataset = @dataset`, `e.timestamp >= @from`, `e.timestamp <= @to`];
+  const p: Record<string, unknown> = params(f);
+
+  if (f.projectId) clauses.push(`e.project_id = @projectId`);
+  if (f.source) {
+    clauses.push(`e.source = @source`);
+    p.source = f.source;
+  }
+  if (f.model) {
+    clauses.push(`e.model = @model`);
+    p.model = f.model;
+  }
+  if (f.assigned === 'assigned') clauses.push(`e.project_id IS NOT NULL`);
+  if (f.assigned === 'unassigned') clauses.push(`e.project_id IS NULL`);
+  if (f.search) {
+    clauses.push(
+      `(e.session_id LIKE @q OR e.model LIKE @q OR e.prompt_preview LIKE @q OR p.name LIKE @q)`,
+    );
+    p.q = `%${f.search}%`;
+  }
+
+  const rows = raw()
+    .prepare(
+      `SELECT e.session_id sessionId,
+              MAX(e.project_id) projectId,
+              MAX(p.name) projectName,
+              MAX(e.source) source,
+              MAX(e.model) model,
+              COUNT(*) requests,
+              COALESCE(SUM(e.is_turn_start),0) turns,
+              COALESCE(SUM(e.tool_uses),0) toolUses,
+              COALESCE(SUM(e.total_tokens),0) tokens,
+              COALESCE(SUM(e.input_tokens),0) inputTokens,
+              COALESCE(SUM(e.output_tokens),0) outputTokens,
+              COALESCE(SUM(e.cache_read_tokens),0) cacheReadTokens,
+              COALESCE(SUM(e.cache_write_tokens),0) cacheWriteTokens,
+              SUM(e.calculated_cost_usd) cost,
+              MIN(e.timestamp) startedAt,
+              MAX(e.timestamp) endedAt,
+              (SELECT e2.prompt_preview FROM events e2
+                WHERE e2.session_id = e.session_id AND e2.prompt_preview IS NOT NULL
+                ORDER BY e2.timestamp LIMIT 1) firstPrompt
+         FROM events e LEFT JOIN projects p ON p.id = e.project_id
+        WHERE ${clauses.join(' AND ')}
+        GROUP BY e.session_id
+        ORDER BY tokens DESC
+        LIMIT @limit OFFSET @offset`,
+    )
+    .all({ ...p, limit: limit + 1, offset: Number(f.cursor ?? 0) }) as SessionRow[];
+
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  return { rows: page, nextCursor: hasMore ? String(Number(f.cursor ?? 0) + limit) : null };
+}
+
+export interface TurnRow {
+  turnIndex: number;
+  prompt: string | null;
+  tokens: number;
+  cost: number | null;
+  requests: number;
+  toolUses: number;
+  timestamp: string;
+}
+
+/** Per-turn cost curve for one conversation, used by the session detail view. */
+export function sessionTurns(dataset: Dataset, sessionId: string): TurnRow[] {
+  return raw()
+    .prepare(
+      `SELECT COALESCE(turn_index, 0) turnIndex,
+              MAX(prompt_preview) prompt,
+              COALESCE(SUM(total_tokens),0) tokens,
+              SUM(calculated_cost_usd) cost,
+              COUNT(*) requests,
+              COALESCE(SUM(tool_uses),0) toolUses,
+              MIN(timestamp) timestamp
+         FROM events
+        WHERE dataset = ? AND session_id = ?
+        GROUP BY turn_index
+        ORDER BY turnIndex`,
+    )
+    .all(dataset, sessionId) as TurnRow[];
+}
+
+export function sessionMeta(dataset: Dataset, sessionId: string): SessionRow | null {
+  const r = raw()
+    .prepare(
+      `SELECT e.session_id sessionId, MAX(e.project_id) projectId, MAX(p.name) projectName,
+              MAX(e.source) source, MAX(e.model) model, COUNT(*) requests,
+              COALESCE(SUM(e.is_turn_start),0) turns, COALESCE(SUM(e.tool_uses),0) toolUses,
+              COALESCE(SUM(e.total_tokens),0) tokens,
+              COALESCE(SUM(e.input_tokens),0) inputTokens,
+              COALESCE(SUM(e.output_tokens),0) outputTokens,
+              COALESCE(SUM(e.cache_read_tokens),0) cacheReadTokens,
+              COALESCE(SUM(e.cache_write_tokens),0) cacheWriteTokens,
+              SUM(e.calculated_cost_usd) cost,
+              MIN(e.timestamp) startedAt, MAX(e.timestamp) endedAt,
+              (SELECT e2.prompt_preview FROM events e2
+                WHERE e2.session_id = e.session_id AND e2.prompt_preview IS NOT NULL
+                ORDER BY e2.timestamp LIMIT 1) firstPrompt
+         FROM events e LEFT JOIN projects p ON p.id = e.project_id
+        WHERE e.dataset = ? AND e.session_id = ?
+        GROUP BY e.session_id`,
+    )
+    .get(dataset, sessionId) as SessionRow | undefined;
+  return r ?? null;
+}
+
+/** Headline figures for the shareable stats card. */
+export function shareStats(f: Filters) {
+  const t = totals(f);
+  const cacheable = t.cacheRead + t.input;
+  return {
+    tokens: t.tokens,
+    sessions: t.sessions,
+    requests: t.events,
+    apiCost: t.apiCost,
+    cacheHitRate: cacheable > 0 ? t.cacheRead / cacheable : 0,
+    from: f.from,
+    to: f.to,
+  };
+}
+
 export function dataBounds(dataset: Dataset) {
   const r = raw()
     .prepare(`SELECT MIN(timestamp) lo, MAX(timestamp) hi, COUNT(*) n FROM events WHERE dataset=?`)

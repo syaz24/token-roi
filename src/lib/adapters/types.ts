@@ -24,6 +24,12 @@ export const NormalisedEvent = z.object({
   status: z.string().default('ok'),
   durationMs: z.number().int().nonnegative().nullable().default(null),
   promptPreview: z.string().nullable().default(null),
+  /** 1-based turn number within the session, when the format exposes turns. */
+  turnIndex: z.number().int().positive().nullable().default(null),
+  /** Tool calls issued by this request, when the format exposes them. */
+  toolUses: z.number().int().nonnegative().nullable().default(null),
+  /** True for the first request of a turn, so turns are not double counted. */
+  isTurnStart: z.boolean().default(false),
   metadata: z.record(z.string(), z.unknown()).nullable().default(null),
   sourceFile: z.string().nullable().default(null),
   sourceLine: z.number().int().nullable().default(null),

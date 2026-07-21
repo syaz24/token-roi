@@ -5,7 +5,7 @@ import { Badge, Empty, MetricCard, Panel, SegmentBar, Tip, SERIES_PALETTE } from
 import { CostBarsChart, CostValueScatter, CumulativeChart, TokenVolumeChart } from '@/components/charts';
 import { GrainTabs } from '@/components/grain-tabs';
 import { RecentSessions } from '@/components/recent-sessions';
-import { resolveFilters, str, type SearchParams } from '@/lib/params';
+import { qs, resolveFilters, str, type SearchParams } from '@/lib/params';
 import {
   allocatedCash,
   byModel,
@@ -113,6 +113,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
           <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-6">
             <MetricCard
               label="Total Tokens"
+              href={`/models${qs(sp)}`}
               value={compactNumber(t.tokens)}
               exact={`${fullNumber(t.tokens)} tokens`}
               delta={deltaPct(t.tokens, prev.tokens)}
@@ -122,6 +123,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
             />
             <MetricCard
               label="API-Equivalent Cost"
+              href={`/costs${qs(sp)}`}
               value={money(t.apiCost)}
               delta={deltaPct(t.apiCost, prev.apiCost)}
               invertDelta
@@ -136,6 +138,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
             />
             <MetricCard
               label="Allocated Subscription Cost"
+              href="/settings?tab=Subscriptions"
               value={money(cash.totalCash)}
               delta={deltaPct(cash.totalCash, prevCash.totalCash)}
               invertDelta
@@ -145,6 +148,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
             />
             <MetricCard
               label="Project Value"
+              href={`/projects${qs(sp)}`}
               value={money(value.total)}
               delta={deltaPct(value.total, prevValue.total)}
               tone="pos"
@@ -153,6 +157,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
             />
             <MetricCard
               label="Net ROI"
+              href={`/roi${qs(sp)}`}
               value={roiPct == null ? '—' : pct(roiPct, 0)}
               delta={roiPct != null && prevRoi != null ? roiPct - prevRoi : null}
               tone={roiPct == null ? 'neutral' : roiPct >= 0 ? 'pos' : 'neg'}
@@ -167,6 +172,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
             />
             <MetricCard
               label="ROI Multiple"
+              href={`/roi${qs(sp)}`}
               value={multiple(roiMult)}
               tone={roiMult == null ? 'neutral' : roiMult >= 1 ? 'pos' : 'neg'}
               tooltip="Project Value ÷ AI Cost. A multiple below 1.0× means the project has not yet returned its AI cost."

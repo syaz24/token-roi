@@ -268,6 +268,79 @@ export function HorizontalBars({
   );
 }
 
+/**
+ * Cost per turn across one conversation.
+ *
+ * Each dot is a turn. Spikes show where the context had grown large enough that
+ * a single exchange cost far more than the session's norm.
+ */
+export function TurnCostChart({
+  data,
+  height = 200,
+}: {
+  data: Array<{ turnIndex: number; cost: number | null; prompt: string | null; tokens: number }>;
+  height?: number;
+}) {
+  const costs = data.map((d) => d.cost ?? 0).filter((c) => c > 0);
+  const median = costs.length
+    ? [...costs].sort((a, b) => a - b)[Math.floor(costs.length / 2)]
+    : 0;
+  const peak = data.reduce((a, b) => ((b.cost ?? 0) > (a.cost ?? 0) ? b : a), data[0]);
+
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <ComposedChart data={data} margin={M}>
+        <CartesianGrid strokeDasharray="2 4" vertical={false} />
+        <XAxis dataKey="turnIndex" {...AXIS} minTickGap={16} />
+        <YAxis {...AXIS} width={W_MONEY} tickFormatter={(v) => moneyAxis(v)} />
+        <Tooltip
+          content={({ active, payload }: any) => {
+            if (!active || !payload?.length) return null;
+            const d = payload[0].payload;
+            return (
+              <div className="chart-tip max-w-[280px]">
+                <div className="mb-1 font-medium text-ink">Turn {d.turnIndex}</div>
+                <Row label="Cost" value={money(d.cost)} />
+                <Row label="Tokens" value={compactNumber(d.tokens)} />
+                {d.prompt && (
+                  <p className="mt-1.5 border-t border-hair pt-1.5 text-[10px] leading-relaxed text-ink3">
+                    {String(d.prompt).slice(0, 140)}
+                  </p>
+                )}
+              </div>
+            );
+          }}
+        />
+        {median > 0 && (
+          <ReferenceLine
+            y={median}
+            stroke="rgba(255,255,255,0.22)"
+            strokeDasharray="4 4"
+            label={{ value: 'median', fill: 'var(--ink-3)', fontSize: 9, position: 'left' }}
+          />
+        )}
+        <Line
+          type="monotone"
+          dataKey="cost"
+          name="Cost"
+          stroke={CHART_COLORS.output}
+          strokeWidth={1.5}
+          dot={{ r: 2, fill: CHART_COLORS.output }}
+          activeDot={{ r: 4 }}
+        />
+        {peak && (peak.cost ?? 0) > median * 3 && (
+          <ReferenceLine
+            x={peak.turnIndex}
+            stroke="var(--warn)"
+            strokeDasharray="4 4"
+            label={{ value: 'peak', fill: 'var(--warn)', fontSize: 9, position: 'top' }}
+          />
+        )}
+      </ComposedChart>
+    </ResponsiveContainer>
+  );
+}
+
 export function SimpleLine({
   data,
   dataKey,

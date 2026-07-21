@@ -130,8 +130,8 @@ test('subscription preset fills the form and one-time toggle works', async ({ pa
 });
 
 test('filters session traces and opens the detail drawer', async ({ page }) => {
-  await page.goto('/sessions?range=all');
-  await expect(page.getByRole('heading', { name: /Session .* Trace Explorer/ })).toBeVisible();
+  await page.goto('/sessions?range=all&view=traces');
+  await expect(page.getByRole('heading', { name: 'Sessions' })).toBeVisible();
 
   const rows = page.locator('tbody tr');
   await expect(rows.first()).toBeVisible({ timeout: 15_000 });
@@ -156,10 +156,10 @@ test('filters session traces and opens the detail drawer', async ({ page }) => {
 });
 
 test('exports filtered CSV', async ({ page }) => {
-  await page.goto('/sessions?range=all&priced=priced');
+  await page.goto('/sessions?range=all&priced=priced&view=traces');
   const [download] = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Export filtered CSV' }).click(),
+    page.getByRole('button', { name: 'Export CSV' }).click(),
   ]);
   expect(download.suggestedFilename()).toMatch(/^token-roi-sessions-.*\.csv$/);
 
@@ -285,6 +285,61 @@ test('chart axis labels are fully visible and the footer renders', async ({ page
   await expect(handle).toHaveAttribute('href', 'https://www.threads.com/@remisiersyazwan');
   await expect(handle).toHaveAttribute('rel', /noopener/);
   await expect(footer).toContainText('Open source');
+});
+
+test('conversation view groups requests into sessions and opens a turn breakdown', async ({ page }) => {
+  await page.goto('/sessions?range=all');
+  await expect(page.getByRole('columnheader', { name: 'What you asked' })).toBeVisible();
+
+  const rows = page.locator('tbody tr');
+  await expect(rows.first()).toBeVisible({ timeout: 15_000 });
+
+  // The fixture's real user prompt must surface here — not the model's reply.
+  await expect(page.getByText(/Wire up the exporter/)).toBeVisible();
+  // ...and secrets in it stay redacted at rest.
+  await expect(page.getByText('sk-ant-AAAA', { exact: false })).toHaveCount(0);
+
+  await rows.first().click();
+  const drawer = page.getByRole('complementary');
+  await expect(drawer.getByRole('heading', { name: 'Conversation' })).toBeVisible();
+  await expect(drawer.getByRole('heading', { name: 'Cost per turn' })).toBeVisible();
+  await expect(drawer.getByRole('heading', { name: 'Totals' })).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(drawer).toBeHidden();
+
+  // Switching views is a URL change, so it survives reload and sharing.
+  await page.getByRole('button', { name: 'Traces' }).click();
+  await expect(page).toHaveURL(/view=traces/);
+});
+
+test('insights are generated and the share card can be opened', async ({ page }) => {
+  await page.goto('/insights?range=all');
+  await expect(page.getByRole('heading', { name: 'Insights' }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Most expensive prompts' })).toBeVisible();
+
+  // Insights are evidence-gated, so a tiny fixture may legitimately produce few.
+  // What must always hold: nothing renders NaN, Infinity or undefined.
+  const body = (await page.locator('main').innerText()).toLowerCase();
+  expect(body).not.toContain('nan');
+  expect(body).not.toContain('infinity');
+  expect(body).not.toContain('undefined');
+
+  await page.getByRole('button', { name: 'Share stats' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Share your stats' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('canvas')).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Download PNG' })).toBeVisible();
+});
+
+test('the wizard proposes projects from indexed folders', async ({ page }) => {
+  await page.goto('/projects');
+  await page.getByRole('button', { name: 'Detect projects' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Detected projects' })).toBeVisible({ timeout: 15_000 });
+  // Every proposal is listed with a checkbox — nothing is created implicitly.
+  await expect(page.locator('input[type="checkbox"]').first()).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Create \d+ project/ })).toBeVisible();
 });
 
 test('views project ROI ranking on the ROI page', async ({ page }) => {
