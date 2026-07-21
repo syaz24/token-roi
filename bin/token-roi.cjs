@@ -37,8 +37,15 @@ function parseArgs(argv) {
     else if (a === '--version' || a === '-v') opts.version = true;
     else if (a === '--no-open') opts.open = false;
     else if (a === '--scan') opts.scanOnly = true;
-    else if (a === '--port' || a === '-p') opts.port = Number(argv[++i]);
-    else if (a.startsWith('--port=')) opts.port = Number(a.slice(7));
+    // Track whether the port was chosen deliberately: an explicit --port that
+    // is busy should fail loudly, while the default may quietly move up.
+    else if (a === '--port' || a === '-p') {
+      opts.port = Number(argv[++i]);
+      opts.portExplicit = true;
+    } else if (a.startsWith('--port=')) {
+      opts.port = Number(a.slice(7));
+      opts.portExplicit = true;
+    }
     else if (a === '--db') opts.db = argv[++i];
     else if (a.startsWith('--db=')) opts.db = a.slice(5);
     else {
@@ -110,6 +117,57 @@ function openBrowser(url) {
   }
 }
 
+/** Is something already listening on this port? */
+function portInUse(port) {
+  const net = require('node:net');
+  return new Promise((resolve) => {
+    const probe = net
+      .createServer()
+      .once('error', (e) => resolve(e.code === 'EADDRINUSE'))
+      .once('listening', () => probe.close(() => resolve(false)))
+      .listen(port, HOST);
+  });
+}
+
+/** First free port at or after `from`, so a busy port is never a dead end. */
+async function findFreePort(from, attempts = 20) {
+  for (let p = from; p < from + attempts; p++) {
+    if (!(await portInUse(p))) return p;
+  }
+  return null;
+}
+
+/**
+ * If the desired port is taken it is usually another copy of this app, or a dev
+ * server. Say so plainly and move to the next free port rather than dying with
+ * an EADDRINUSE stack trace.
+ */
+async function resolvePort(requested, wasExplicit) {
+  if (!(await portInUse(requested))) return requested;
+
+  if (wasExplicit) {
+    console.error(
+      `\n${c.red(`Port ${requested} is already in use.`)}\n` +
+        c.dim('  Another copy of this app, or a dev server, is probably running.\n') +
+        c.dim(`  Stop it, or choose another port:  `) +
+        c.violet(`npx token-roi --port ${requested + 1}`) +
+        '\n',
+    );
+    process.exit(1);
+  }
+
+  const free = await findFreePort(requested + 1);
+  if (free == null) {
+    console.error(c.red(`\nPorts ${requested}-${requested + 20} are all in use.\n`));
+    process.exit(1);
+  }
+  console.log(
+    `${c.yellow(`Port ${requested} is in use`)} ${c.dim('(another copy of this app, or a dev server)')}\n` +
+      `${c.dim('Using')} ${c.violet(String(free))} ${c.dim('instead.')}`,
+  );
+  return free;
+}
+
 async function waitForServer(url, timeoutMs = 60_000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -160,12 +218,13 @@ async function main() {
     process.exit(1);
   }
 
-  const url = `http://${HOST}:${opts.port}`;
   console.log(`
 ${c.bold('Project Token ROI')} ${c.dim(`v${pkg.version}`)}
-${c.dim('Database:')} ${dbFile}
-${c.dim('Starting on')} ${c.violet(url)} ${c.dim('(loopback only)')}
-`);
+${c.dim('Database:')} ${dbFile}`);
+
+  const port = await resolvePort(opts.port, opts.portExplicit);
+  const url = `http://${HOST}:${port}`;
+  console.log(`${c.dim('Starting on')} ${c.violet(url)} ${c.dim('(loopback only)')}\n`);
 
   const child = spawn(process.execPath, [server], {
     cwd: path.join(ROOT, '.next', 'standalone'),
@@ -173,7 +232,7 @@ ${c.dim('Starting on')} ${c.violet(url)} ${c.dim('(loopback only)')}
     env: {
       ...process.env,
       HOSTNAME: HOST,
-      PORT: String(opts.port),
+      PORT: String(port),
       NODE_ENV: 'production',
     },
   });
