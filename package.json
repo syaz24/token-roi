@@ -1,6 +1,6 @@
 {
   "name": "token-roi",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "Local-first analytics for AI coding-agent token spend, attributed to projects and measured against the value they produced. No accounts, no cloud, no telemetry.",
   "keywords": [

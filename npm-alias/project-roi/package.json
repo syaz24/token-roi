@@ -1,6 +1,6 @@
 {
   "name": "project-roi",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Alias for token-roi \u2014 local-first analytics for AI coding-agent token spend. Running `npx project-roi` launches the same app.",
   "keywords": [
     "ai",
@@ -23,7 +23,7 @@
     "README.md"
   ],
   "dependencies": {
-    "token-roi": "^0.1.0"
+    "token-roi": "^0.2.0"
   },
   "homepage": "https://github.com/syaz24/token-roi#readme",
   "repository": {
