@@ -1,0 +1,37 @@
+{
+  "name": "project-roi",
+  "version": "0.1.0",
+  "description": "Alias for token-roi \u2014 local-first analytics for AI coding-agent token spend. Running `npx project-roi` launches the same app.",
+  "keywords": [
+    "ai",
+    "tokens",
+    "roi",
+    "analytics",
+    "cost-tracking",
+    "local-first"
+  ],
+  "author": "@RemisierSyazwan (https://www.threads.com/@remisiersyazwan)",
+  "license": "MIT",
+  "bin": {
+    "project-roi": "cli.cjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "cli.cjs",
+    "README.md"
+  ],
+  "dependencies": {
+    "token-roi": "^0.1.0"
+  },
+  "homepage": "https://github.com/syaz24/token-roi#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/syaz24/token-roi.git",
+    "directory": "npm-alias/project-roi"
+  },
+  "bugs": {
+    "url": "https://github.com/syaz24/token-roi/issues"
+  }
+}

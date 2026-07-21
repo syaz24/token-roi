@@ -1,0 +1,281 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   ALPINE NOIR / OBSIDIAN TELEMETRY
+   Near-black shell suspended over a scenic backdrop. All assets
+   are local or CSS-generated: no remote fonts, no image CDN.
+   ============================================================ */
+
+:root {
+  --canvas: #08080c;
+  --panel: 17 17 23;
+  --raised: 23 23 30;
+  --hair: rgba(255, 255, 255, 0.1);
+  --hair-strong: rgba(255, 255, 255, 0.16);
+  --ink: #f4f4f5;
+  --ink-2: #a1a1aa;
+  --ink-3: #71717a;
+  --panel-opacity: 0.94;
+  --wallpaper-opacity: 0.35;
+  --pos: #34d399;
+  --neg: #f87171;
+  --warn: #fbbf24;
+  --info: #60a5fa;
+  --roi: #a78bfa;
+}
+
+* {
+  border-color: var(--hair);
+}
+
+html,
+body {
+  height: 100%;
+  /* Wide content (tables, charts) scrolls inside its own container. The page
+     shell itself must never scroll sideways. */
+  overflow-x: hidden;
+}
+
+body {
+  background-color: var(--canvas);
+  color: var(--ink);
+  font-feature-settings: 'tnum' 1, 'cv05' 1;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* ---------- Backdrop: bundled CSS-generated alpine scene ---------- */
+
+.app-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background-color: var(--canvas);
+  background-image: var(--wallpaper-image, none);
+  background-size: cover;
+  background-position: center;
+  opacity: var(--wallpaper-opacity);
+}
+
+/* A tasteful bundled placeholder: layered ridgelines + cold sky, drawn
+   entirely with gradients so nothing is fetched over the network. */
+.app-backdrop--default {
+  background-image:
+    radial-gradient(120% 90% at 50% 0%, rgba(96, 130, 180, 0.35) 0%, rgba(8, 8, 12, 0) 60%),
+    linear-gradient(175deg, #16202e 0%, #0d131c 45%, #08080c 100%),
+    conic-gradient(from 200deg at 18% 78%, transparent 0deg, rgba(150, 175, 205, 0.16) 12deg, transparent 26deg),
+    conic-gradient(from 160deg at 42% 86%, transparent 0deg, rgba(120, 145, 180, 0.2) 14deg, transparent 30deg),
+    conic-gradient(from 205deg at 68% 82%, transparent 0deg, rgba(100, 125, 160, 0.18) 13deg, transparent 28deg),
+    conic-gradient(from 155deg at 88% 90%, transparent 0deg, rgba(90, 112, 145, 0.14) 15deg, transparent 32deg);
+}
+
+.app-veil {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(140% 100% at 50% -10%, rgba(8, 8, 12, 0.2) 0%, rgba(8, 8, 12, 0.82) 55%, rgba(8, 8, 12, 0.96) 100%);
+}
+
+/* ---------- Panels ---------- */
+
+.panel {
+  position: relative;
+  border-radius: 10px;
+  border: 1px solid var(--hair);
+  background: rgb(var(--panel) / var(--panel-opacity));
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.05),
+    0 18px 40px -24px rgba(0, 0, 0, 0.9);
+}
+
+.panel-raised {
+  background: rgb(var(--raised) / 0.96);
+}
+
+/* Tiny dot-grid texture, pure CSS. */
+.panel-dotted::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px);
+  background-size: 12px 12px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.85), transparent 70%);
+}
+
+.panel-hover {
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+.panel-hover:hover {
+  border-color: var(--hair-strong);
+  background: rgb(var(--raised) / 0.96);
+}
+
+/* ---------- Typography helpers ---------- */
+
+.label-xs {
+  font-size: 10px;
+  line-height: 14px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.metric {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.mono {
+  font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Scrollbars ---------- */
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.18);
+  background-clip: content-box;
+}
+
+/* ---------- Dropdown / listbox ---------- */
+
+/* The resting state is fully visible; the keyframes only animate INTO it.
+   If animations are throttled (backgrounded tab) or disabled entirely, the
+   menu still renders at full opacity rather than being invisible-but-clickable. */
+@keyframes select-in-down {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes select-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.select-menu {
+  opacity: 1;
+  animation: select-in-down 140ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: top center;
+}
+
+.select-menu--up {
+  animation-name: select-in-up;
+  transform-origin: bottom center;
+}
+
+/* Options stagger in just enough to read as a sweep, never as a delay. */
+.select-menu > li {
+  animation: select-in-down 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.reduce-motion .select-menu,
+.reduce-motion .select-menu > li {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .select-menu,
+  .select-menu > li {
+    animation: none !important;
+  }
+}
+
+/* ---------- Chart tooltip ---------- */
+
+.chart-tip {
+  border-radius: 8px;
+  border: 1px solid var(--hair-strong);
+  background: rgba(12, 12, 16, 0.97);
+  box-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.95);
+  padding: 8px 10px;
+  font-size: 11px;
+}
+
+/* Axis ticks are data, not prose: monospace with tabular figures so digits
+   line up column-to-column and dates don't jitter as values change. */
+.recharts-cartesian-axis-tick text,
+.recharts-text {
+  font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  letter-spacing: 0.01em;
+  fill: var(--ink-3);
+}
+
+.recharts-cartesian-axis-tick text {
+  fill: var(--ink-3);
+}
+.recharts-cartesian-grid line {
+  stroke: rgba(255, 255, 255, 0.06);
+}
+.recharts-curve.recharts-tooltip-cursor,
+.recharts-rectangle.recharts-tooltip-cursor {
+  fill: rgba(255, 255, 255, 0.04);
+  stroke: rgba(255, 255, 255, 0.12);
+}
+
+/* ---------- Focus ---------- */
+
+:focus-visible {
+  outline: 1px solid rgba(167, 139, 250, 0.7);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.reduce-motion * {
+  animation-duration: 0.01ms !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* Compact mode tightens vertical rhythm without changing layout. */
+.compact .panel {
+  --pad: 10px;
+}
+.compact .metric {
+  font-size: 90%;
+}
