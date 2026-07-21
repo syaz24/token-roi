@@ -342,6 +342,50 @@ test('the wizard proposes projects from indexed folders', async ({ page }) => {
   await expect(page.getByRole('button', { name: /^Create \d+ project/ })).toBeVisible();
 });
 
+test('overlays stay pinned to the viewport, not to an animated ancestor', async ({ page }) => {
+  // Regression: the page-enter animation puts a transform on the page wrapper
+  // and on every panel. A `position: fixed` drawer then resolves against that
+  // panel instead of the viewport, and renders half off-screen. Overlays are
+  // portalled to <body> so no ancestor can capture them.
+  await page.goto('/sessions?range=all');
+  await page.locator('tbody tr').first().click();
+
+  const drawer = page.getByRole('complementary');
+  await expect(drawer).toBeVisible();
+
+  const vp = page.viewportSize()!;
+  // The drawer slides in, so poll until it settles rather than measuring mid-flight.
+  await expect
+    .poll(async () => {
+      const b = await drawer.boundingBox();
+      return b ? Math.round(b.x + b.width) : -1;
+    }, { timeout: 5_000 })
+    .toBe(vp.width);
+
+  const box = (await drawer.boundingBox())!;
+  // Flush to the right edge and spanning the full viewport height.
+  expect(Math.round(box.y)).toBe(0);
+  expect(Math.round(box.height)).toBeCloseTo(vp.height, -1);
+
+  // It must be a direct child of <body>, not nested inside a panel.
+  const parentIsBody = await drawer.evaluate((el) => el.parentElement === document.body);
+  expect(parentIsBody).toBe(true);
+});
+
+test('metric cards in a row are the same height', async ({ page }) => {
+  await page.goto('/?range=all');
+  const cards = page.locator('a[aria-label$="open details"] > div');
+  await expect(cards.first()).toBeVisible();
+
+  const heights = await cards.evaluateAll((els) =>
+    els.map((e) => Math.round(e.getBoundingClientRect().height)),
+  );
+  expect(heights.length).toBeGreaterThan(1);
+  // Cards differ in whether they carry a sparkline, an exact value or a
+  // footnote; every optional row keeps its slot so they still line up.
+  expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(1);
+});
+
 test('views project ROI ranking on the ROI page', async ({ page }) => {
   await page.goto('/roi?range=all');
   await expect(page.getByRole('heading', { name: 'ROI Analysis' })).toBeVisible();

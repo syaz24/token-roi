@@ -14,7 +14,7 @@ import { str, type SearchParams } from '@/lib/params';
 import { getAllSettings } from '@/lib/settings';
 import { raw, dbPath } from '@/db/client';
 import { REDACTION_RULE_NAMES } from '@/lib/privacy';
-import { subscriptions } from '@/lib/queries';
+import { subscriptions, subscriptionSpendToDate } from '@/lib/queries';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +36,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     .all() as any[];
 
   const subs = subscriptions('real');
+  const spend = subscriptionSpendToDate('real').perSub;
   const projects = raw()
     .prepare(`SELECT id, name FROM projects WHERE dataset='real' ORDER BY name`)
     .all() as Array<{ id: string; name: string }>;
@@ -65,7 +66,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         {tab === 'Appearance' && <AppearanceSettings settings={settings} />}
         {tab === 'Privacy' && <PrivacySettings settings={settings} rules={REDACTION_RULE_NAMES} />}
         {tab === 'Pricing' && <PricingTable rows={pricing} />}
-        {tab === 'Subscriptions' && <SubscriptionsPanel subs={subs} projects={projects} />}
+        {tab === 'Subscriptions' && <SubscriptionsPanel subs={subs} projects={projects} spend={spend} />}
         {tab === 'Scanning' && <ScanningSettings settings={settings} />}
         {tab === 'Data' && <DataMaintenance counts={counts} dbFile={dbPath()} dataset={settings.dataset} />}
       </div>

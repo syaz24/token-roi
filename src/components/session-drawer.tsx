@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Eye, EyeOff, X } from 'lucide-react';
-import { Badge, Button, cn } from './ui';
+import { Badge, Button, Portal, cn } from './ui';
 import type { EventRow } from '@/lib/queries';
 import { compactNumber, dateTime, duration, fullNumber, money } from '@/lib/format';
 
@@ -32,7 +32,8 @@ export function SessionDrawer({ row, onClose }: { row: EventRow; onClose: () => 
   ];
 
   return (
-    <AnimatePresence>
+    <Portal>
+      <AnimatePresence>
       <motion.div
         key="scrim"
         initial={{ opacity: 0 }}
@@ -150,7 +151,8 @@ export function SessionDrawer({ row, onClose }: { row: EventRow; onClose: () => 
           </Section>
         </div>
       </motion.aside>
-    </AnimatePresence>
+      </AnimatePresence>
+    </Portal>
   );
 }
 

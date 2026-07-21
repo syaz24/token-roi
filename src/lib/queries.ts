@@ -1,5 +1,11 @@
 import { raw } from '@/db/client';
-import { allocate, chargesInMonth, monthlyCashCost, type AllocationMethod } from './roi/allocation';
+import {
+  allocate,
+  chargesInMonth,
+  lifetimeCashCost,
+  monthlyCashCost,
+  type AllocationMethod,
+} from './roi/allocation';
 import {
   breakEven,
   costForBasis,
@@ -692,6 +698,38 @@ export function unassignedSessions(dataset: Dataset, limit = 200) {
     firstSeen: string;
     lastSeen: string;
   }>;
+}
+
+export interface SubscriptionSpend {
+  id: string;
+  months: number;
+  total: number;
+}
+
+/**
+ * Running total each plan has cost since its billing start.
+ *
+ * Independent of the dashboard's date range: a plan billed from an earlier date
+ * has been costing money all along, and that total does not change because you
+ * are currently looking at the last 30 days.
+ */
+export function subscriptionSpendToDate(dataset: Dataset): {
+  perSub: Record<string, SubscriptionSpend>;
+  total: number;
+  activeMonthly: number;
+} {
+  const subs = subscriptions(dataset);
+  const perSub: Record<string, SubscriptionSpend> = {};
+  let total = 0;
+  let activeMonthly = 0;
+
+  for (const s of subs) {
+    const life = lifetimeCashCost(s);
+    perSub[s.id] = { id: s.id, months: life.months, total: life.total };
+    total += life.total;
+    if (s.active && s.billingCycle !== 'one_time') activeMonthly += monthlyCashCost(s);
+  }
+  return { perSub, total, activeMonthly };
 }
 
 /* ------------------ conversation-level views ------------------ */

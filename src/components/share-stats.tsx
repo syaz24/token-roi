@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { Download, Share2, X } from 'lucide-react';
-import { Button, cn } from './ui';
+import { Button, Portal, cn } from './ui';
 import { compactNumber, money, shortDate } from '@/lib/format';
 
 export interface ShareableStats {
@@ -133,6 +133,7 @@ export function ShareStats({ stats, headline }: { stats: ShareableStats; headlin
       </Button>
 
       {open && (
+        <Portal>
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm"
           onClick={() => setOpen(false)}
@@ -169,6 +170,7 @@ export function ShareStats({ stats, headline }: { stats: ShareableStats; headlin
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </>
   );

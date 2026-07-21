@@ -62,7 +62,16 @@ export interface TokenPoint {
   reasoning: number;
 }
 
-export function TokenVolumeChart({ data, height = 220 }: { data: TokenPoint[]; height?: number }) {
+export function TokenVolumeChart({
+  data,
+  height = 220,
+  fill = false,
+}: {
+  data: TokenPoint[];
+  height?: number;
+  /** Fill the parent's height rather than using a fixed one. */
+  fill?: boolean;
+}) {
   const series = [
     { key: 'input', name: 'Input', color: CHART_COLORS.input },
     { key: 'output', name: 'Output', color: CHART_COLORS.output },
@@ -71,7 +80,7 @@ export function TokenVolumeChart({ data, height = 220 }: { data: TokenPoint[]; h
     { key: 'reasoning', name: 'Reasoning', color: CHART_COLORS.reasoning },
   ];
   return (
-    <ResponsiveContainer width="100%" height={height}>
+    <ResponsiveContainer width="100%" height={fill ? "100%" : height}>
       <AreaChart data={data} margin={M}>
         <defs>
           {series.map((s) => (

@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertTriangle, X } from 'lucide-react';
-import { Badge, Button, Empty, cn } from './ui';
+import { Badge, Button, Empty, Portal, cn } from './ui';
 import { TurnCostChart } from './charts';
 import type { SessionRow, TurnRow } from '@/lib/queries';
 import { compactNumber, dateTime, fullNumber, money } from '@/lib/format';
@@ -37,7 +37,8 @@ export function SessionDetail({ session, onClose }: { session: SessionRow; onClo
   const spike = peak && median > 0 ? (peak.cost as number) / median : null;
 
   return (
-    <AnimatePresence>
+    <Portal>
+      <AnimatePresence>
       <motion.div
         key="scrim"
         initial={{ opacity: 0 }}
@@ -152,7 +153,8 @@ export function SessionDetail({ session, onClose }: { session: SessionRow; onClo
           <p className="mono truncate text-[9.5px] text-ink3">session {session.sessionId}</p>
         </div>
       </motion.aside>
-    </AnimatePresence>
+      </AnimatePresence>
+    </Portal>
   );
 }
 

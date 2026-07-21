@@ -22,9 +22,12 @@ const METHODS: Array<[string, string, string]> = [
 export function SubscriptionsPanel({
   subs,
   projects,
+  spend,
 }: {
   subs: SubRow[];
   projects: Array<{ id: string; name: string }>;
+  /** Running total per plan since its billing start, keyed by subscription id. */
+  spend: Record<string, { months: number; total: number }>;
 }) {
   const router = useRouter();
   const [editing, setEditing] = React.useState<SubRow | 'new' | null>(null);
@@ -107,6 +110,7 @@ export function SubscriptionsPanel({
   const recurring = subs.filter((s) => s.active && s.billingCycle !== 'one_time');
   const totalMonthly = recurring.reduce((sum, s) => sum + monthlyCashCost(s), 0);
   const oneTimeCount = subs.filter((s) => s.active && s.billingCycle === 'one_time').length;
+  const spentToDate = Object.values(spend).reduce((sum, x) => sum + x.total, 0);
 
   return (
     <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-3">
@@ -114,7 +118,7 @@ export function SubscriptionsPanel({
         title="Subscriptions"
         subtitle={`${money(totalMonthly)} per month across ${recurring.length} recurring plan${
           recurring.length === 1 ? '' : 's'
-        }${oneTimeCount ? ` · ${oneTimeCount} one-time purchase${oneTimeCount === 1 ? '' : 's'}` : ''}`}
+        }${oneTimeCount ? ` · ${oneTimeCount} one-time purchase${oneTimeCount === 1 ? '' : 's'}` : ''} · ${money(spentToDate)} spent to date`}
         className="xl:col-span-2"
         right={
           <Button variant="primary" onClick={() => setEditing('new')}>
@@ -132,6 +136,7 @@ export function SubscriptionsPanel({
                   <th className="label-xs px-3.5 py-1.5 font-medium">Plan</th>
                   <th className="label-xs px-2 py-1.5 text-right font-medium">Price</th>
                   <th className="label-xs px-2 py-1.5 text-right font-medium">Effective/mo</th>
+                  <th className="label-xs px-2 py-1.5 text-right font-medium">Spent to date</th>
                   <th className="label-xs px-2 py-1.5 font-medium">Cycle</th>
                   <th className="label-xs px-2 py-1.5 font-medium">Allocation</th>
                   <th className="label-xs px-2 py-1.5 font-medium">Billing from</th>
@@ -156,6 +161,12 @@ export function SubscriptionsPanel({
                       ) : (
                         money(monthlyCashCost(s))
                       )}
+                    </td>
+                    <td className="num px-2 py-1.5 text-right text-ink">
+                      {money(spend[s.id]?.total ?? 0)}
+                      <div className="text-[9.5px] text-ink3">
+                        {spend[s.id]?.months ?? 0} month{(spend[s.id]?.months ?? 0) === 1 ? '' : 's'}
+                      </div>
                     </td>
                     <td className="px-2 py-1.5 text-ink3">
                       {s.billingCycle === 'one_time' ? 'one-time' : s.billingCycle}

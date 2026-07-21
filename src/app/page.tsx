@@ -15,6 +15,7 @@ import {
   projectRoiTable,
   tokenSeries,
   totals,
+  subscriptionSpendToDate,
   unassignedUsage,
   valueTotals,
   type Grain,
@@ -35,6 +36,8 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   const series = tokenSeries(f, grain);
   const daily = tokenSeries(f, 'day');
   const cash = allocatedCash(f);
+  // Independent of the date range: what the plans have cost since they started.
+  const subSpend = subscriptionSpendToDate(f.dataset);
   const prevCash = allocatedCash(prevF);
   const value = valueTotals(f.dataset, f.projectId ?? null, f.from, f.to);
   const prevValue = valueTotals(f.dataset, f.projectId ?? null, prevF.from, prevF.to);
@@ -144,7 +147,11 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
               invertDelta
               tooltip="Real subscription spend for the billing months in range, allocated across projects by the method you configured."
               warning={cash.unallocated > 0.01 ? `${money(cash.unallocated)} unallocated` : undefined}
-              footnote={cash.totalCash === 0 ? 'No subscriptions configured' : `Confidence ${(cash.confidence * 100).toFixed(0)}%`}
+              footnote={
+                subSpend.total > 0
+                  ? `${money(subSpend.total)} spent to date · ${money(subSpend.activeMonthly)}/mo now`
+                  : 'No subscriptions configured'
+              }
             />
             <MetricCard
               label="Project Value"
@@ -193,13 +200,15 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
               subtitle="Input, output, cache and reasoning tokens over time"
               className="xl:col-span-2"
               right={<GrainTabs current={grain} />}
-              bodyClassName="p-2"
+              bodyClassName="flex p-2"
             >
-              <TokenVolumeChart data={series} />
+              <div className="min-h-[240px] w-full flex-1">
+                <TokenVolumeChart data={series} fill />
+              </div>
             </Panel>
 
             <Panel title="Model Usage Distribution" subtitle={`${models.length} models in range`} bodyClassName="p-0">
-              <ul className="divide-y divide-hair">
+              <ul className="max-h-[420px] divide-y divide-hair overflow-y-auto">
                 {models.slice(0, 7).map((m, i) => (
                   <li key={`${m.model}-${i}`} className="px-3.5 py-2">
                     <div className="flex items-center justify-between gap-2">

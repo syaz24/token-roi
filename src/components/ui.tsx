@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { Check, ChevronDown, Info } from 'lucide-react';
 
@@ -170,10 +171,12 @@ export function MetricCard({
   const toneClass =
     tone === 'pos' ? 'text-pos' : tone === 'neg' ? 'text-neg' : tone === 'roi' ? 'text-roi' : 'text-ink';
 
+  // Every optional row keeps its slot whether or not it has content, so a card
+  // with a sparkline lines up exactly with one that has none.
   const card = (
     <div
       className={cn(
-        'panel panel-dotted panel-hover flex min-w-0 flex-col justify-between gap-2 p-3',
+        'panel panel-dotted panel-hover flex h-full min-w-0 flex-col gap-1.5 p-3',
         href && 'cursor-pointer transition-transform duration-150 hover:-translate-y-px',
       )}
     >
@@ -193,32 +196,51 @@ export function MetricCard({
       >
         {value}
       </div>
-      {exact && exact !== value && (
-        <span className="num truncate text-[10px] text-ink3">{exact}</span>
-      )}
-      {spark && spark.length > 1 ? (
-        <Sparkline
-          data={spark}
-          stroke={tone === 'pos' ? 'var(--pos)' : tone === 'neg' ? 'var(--neg)' : tone === 'roi' ? 'var(--roi)' : 'rgba(244,244,245,0.5)'}
-        />
-      ) : (
-        <div className="h-6" />
-      )}
-      {warning ? (
-        <p className="truncate text-[10px] text-warn" title={warning}>
-          {warning}
-        </p>
-      ) : footnote ? (
-        <p className="truncate text-[10px] text-ink3">{footnote}</p>
-      ) : (
-        <div className="h-3.5" />
-      )}
+      <div className="h-[14px] shrink-0">
+        {exact && exact !== value && (
+          <span className="num block truncate text-[10px] leading-[14px] text-ink3">{exact}</span>
+        )}
+      </div>
+
+      {/* Sparkline slot is reserved even when there is no series to draw. */}
+      <div className="mt-auto h-6 shrink-0">
+        {spark && spark.length > 1 && (
+          <Sparkline
+            data={spark}
+            stroke={
+              tone === 'pos'
+                ? 'var(--pos)'
+                : tone === 'neg'
+                  ? 'var(--neg)'
+                  : tone === 'roi'
+                    ? 'var(--roi)'
+                    : 'rgba(244,244,245,0.5)'
+            }
+          />
+        )}
+      </div>
+
+      <div className="h-[14px] shrink-0">
+        {warning ? (
+          <p className="truncate text-[10px] leading-[14px] text-warn" title={warning}>
+            {warning}
+          </p>
+        ) : footnote ? (
+          <p className="truncate text-[10px] leading-[14px] text-ink3" title={footnote}>
+            {footnote}
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 
   if (!href) return card;
   return (
-    <Link href={href} className="block min-w-0 focus-visible:rounded-[10px]" aria-label={`${label} — open details`}>
+    <Link
+      href={href}
+      className="block h-full min-w-0 focus-visible:rounded-[10px]"
+      aria-label={`${label} — open details`}
+    >
       {card}
     </Link>
   );
@@ -231,6 +253,22 @@ function metricSize(value: string): string {
   if (n <= 13) return 'text-[21px]';
   if (n <= 18) return 'text-[17px]';
   return 'text-[15px]';
+}
+
+/**
+ * Renders overlays into <body>.
+ *
+ * A `position: fixed` element is positioned against the nearest ancestor with a
+ * transform, filter or perspective — not the viewport. The page-enter animation
+ * puts a transform on the page wrapper and on every panel, which silently
+ * dragged drawers and modals inside their parent panel. Portalling escapes any
+ * such ancestor, whatever future styling is added.
+ */
+export function Portal({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+  return createPortal(children, document.body);
 }
 
 export function Empty({ title, hint, action }: { title: string; hint?: string; action?: React.ReactNode }) {

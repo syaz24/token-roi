@@ -151,6 +151,51 @@ export function monthlyCashCost(sub: {
   return afterDiscount * (1 + (sub.taxPct || 0) / 100);
 }
 
+/**
+ * Total cash a plan has cost since it started, up to `asOf`.
+ *
+ * A plan billed from an earlier date has been costing money the whole time,
+ * even if the dashboard is currently showing a 30-day window. This is that
+ * running total: every month the plan was active, at its effective monthly
+ * rate. One-time purchases contribute their amount exactly once.
+ */
+export function lifetimeCashCost(
+  sub: {
+    monthlyPrice: number;
+    seats: number;
+    taxPct: number;
+    discountPct: number;
+    billingCycle: string;
+    billingStart: string;
+    billingEnd?: string | null;
+  },
+  asOf: Date = new Date(),
+): { months: number; total: number } {
+  const perMonth = monthlyCashCost(sub);
+  if (sub.billingCycle === 'one_time') {
+    const started = Date.parse(sub.billingStart);
+    const active = Number.isFinite(started) && started <= asOf.getTime();
+    return { months: active ? 1 : 0, total: active ? perMonth : 0 };
+  }
+
+  const start = new Date(sub.billingStart);
+  if (Number.isNaN(start.getTime())) return { months: 0, total: 0 };
+
+  const hardEnd = sub.billingEnd ? new Date(sub.billingEnd) : asOf;
+  const end = hardEnd < asOf ? hardEnd : asOf;
+  if (end < start) return { months: 0, total: 0 };
+
+  // Inclusive count of calendar months touched, so a plan started last month
+  // and still running counts as two.
+  const months =
+    (end.getUTCFullYear() - start.getUTCFullYear()) * 12 +
+    (end.getUTCMonth() - start.getUTCMonth()) +
+    1;
+
+  const capped = Math.max(0, Math.min(months, 1200));
+  return { months: capped, total: capped * perMonth };
+}
+
 /** Whether a plan contributes cost in the given YYYY-MM month. */
 export function chargesInMonth(
   sub: { billingCycle: string; billingStart: string; billingEnd?: string | null },
